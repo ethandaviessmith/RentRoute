@@ -2,7 +2,10 @@
 
 Chrome MV3 extension. Injects a floating panel on rental listing pages showing commute times + map routes to your saved destinations.
 
-![RentRoute panel showing commute time cards with maps](rent_route_panel1.png)
+
+| | |
+|---|---|
+| ![Panel — commute cards with maps](rent_route_panel1.png) | ![Panel — API key and destinations](rent_route_panel2.png) |
 
 ## Stack
 
