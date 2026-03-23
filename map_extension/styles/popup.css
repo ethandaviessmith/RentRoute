@@ -1,0 +1,179 @@
+/* styles/popup.css — extension popup UI */
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  width: 280px;
+  background: #1a1a2e;
+  color: #e0e0e0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 13px;
+}
+
+header {
+  padding: 12px 14px 10px;
+  background: #0f0f1e;
+  border-bottom: 1px solid #2e2e50;
+}
+h1 {
+  font-size: 16px;
+  font-weight: 700;
+  color: #a5b4fc;
+  letter-spacing: 0.03em;
+}
+
+/* ── Sections ────────────────────────────────────── */
+.section {
+  padding: 12px 14px;
+  border-bottom: 1px solid #2e2e50;
+}
+.section-header {
+  font-weight: 600;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: #64748b;
+  margin-bottom: 8px;
+}
+label {
+  display: block;
+  font-size: 11px;
+  color: #94a3b8;
+  margin-bottom: 5px;
+  font-weight: 500;
+}
+
+/* ── Inputs ─────────────────────────────────────── */
+input[type="text"],
+input[type="password"],
+select {
+  background: #0d1b2a;
+  border: 1px solid #2e2e50;
+  border-radius: 5px;
+  color: #e0e0e0;
+  font-size: 12px;
+  padding: 5px 8px;
+  width: 100%;
+  outline: none;
+  transition: border-color 0.15s;
+}
+input:focus, select:focus { border-color: #6366f1; }
+select { cursor: pointer; }
+
+/* ── Key row ────────────────────────────────────── */
+.key-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.key-row input { flex: 1; }
+
+.btn-primary {
+  background: #4f46e5;
+  border: none;
+  color: #fff;
+  padding: 5px 11px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: background 0.15s;
+}
+.btn-primary:hover:not(:disabled) { background: #4338ca; }
+.btn-primary:disabled { opacity: 0.5; cursor: default; }
+
+.hint-link {
+  display: inline-block;
+  margin-top: 5px;
+  font-size: 10px;
+  color: #6366f1;
+  text-decoration: none;
+}
+.hint-link:hover { text-decoration: underline; }
+
+.hint-text {
+  margin-top: 5px;
+  font-size: 10px;
+  color: #22c55e;
+}
+
+/* ── Destination cards ──────────────────────────── */
+#dest-list { margin-bottom: 8px; }
+
+.dest-card {
+  background: #16213e;
+  border: 1px solid #2e2e50;
+  border-radius: 7px;
+  padding: 8px 10px;
+  margin-bottom: 8px;
+}
+
+.dest-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 5px;
+}
+.dest-row:last-child { margin-bottom: 0; }
+.dest-row--addr { align-items: center; }
+
+.dest-mode  { width: 100px; flex-shrink: 0; }
+.dest-label { flex: 1; min-width: 0; }
+
+.dest-address { flex: 1; min-width: 0; }
+.dest-geo-status {
+  font-size: 10px;
+  white-space: nowrap;
+  color: #64748b;
+  flex-shrink: 0;
+}
+.dest-geo-status--ok  { color: #22c55e; }
+.dest-geo-status--err { color: #f87171; }
+
+.btn-remove {
+  background: transparent;
+  border: 1px solid #7f1d1d;
+  color: #f87171;
+  border-radius: 4px;
+  width: 22px;
+  height: 22px;
+  line-height: 1;
+  cursor: pointer;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+.btn-remove:hover { background: #7f1d1d; }
+
+/* ── Add button ─────────────────────────────────── */
+.btn-add {
+  width: 100%;
+  background: transparent;
+  border: 1px dashed #2e2e50;
+  color: #7c7c9e;
+  padding: 7px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: border-color 0.15s, color 0.15s;
+}
+.btn-add:hover { border-color: #a5b4fc; color: #a5b4fc; }
+.btn-icon { font-size: 15px; line-height: 1; }
+
+.empty-hint {
+  text-align: center;
+  color: #4b5563;
+  font-size: 12px;
+  padding: 10px 0;
+}
+
+/* ── Last section no border ─────────────────────── */
+.section:last-child { border-bottom: none; }

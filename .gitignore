@@ -1,0 +1,15 @@
+node_modules/
+
+# Vendored reference (28K lines, not part of build)
+filmreel_extension/4chanx.js
+
+# Generated test-inject bundles
+filmreel_extension/filmreel/test-inject-setup.js
+filmreel_extension/filmreel/test-inject-init.js
+
+# Temp build artefacts
+filmreel_extension/filmreel/_build-entry.js
+*.check.tmp
+
+# API keys (access-controlled)
+map_extension/keys.js

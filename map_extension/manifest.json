@@ -1,0 +1,51 @@
+{
+  "manifest_version": 3,
+  "name": "RentRoute",
+  "version": "0.1.0",
+  "description": "See commute times to your destinations while browsing rental listings.",
+  "permissions": ["storage", "activeTab", "scripting", "tabs"],
+  "host_permissions": [
+    "https://router.hereapi.com/*",
+    "https://transit.router.hereapi.com/*",
+    "https://nominatim.openstreetmap.org/*",
+    "https://www.zillow.com/*",
+    "https://www.apartments.com/*",
+    "https://www.realtor.com/*"
+  ],
+  "background": { "service_worker": "background.js" },
+  "action": { "default_popup": "popup.html", "default_title": "RentRoute" },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.zillow.com/*",
+        "https://www.apartments.com/*",
+        "https://www.realtor.com/*"
+      ],
+      "js": ["content.js"],
+      "css": ["styles/panel.css", "lib/leaflet.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "styles/panel.css",
+        "lib/leaflet.css",
+        "lib/leaflet.js",
+        "keys.js",
+        "modules/logger.js",
+        "modules/state.js",
+        "modules/api.js",
+        "modules/flexpolyline.js",
+        "modules/detect.js",
+        "modules/panel.js",
+        "modules/map.js"
+      ],
+      "matches": [
+        "https://www.zillow.com/*",
+        "https://www.apartments.com/*",
+        "https://www.realtor.com/*"
+      ]
+    }
+  ]
+}

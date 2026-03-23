@@ -1,0 +1,281 @@
+/* styles/panel.css — floating commute panel injected into listing pages */
+
+#rentroute-panel {
+  position: fixed;
+  top: 80px;
+  right: 16px;
+  z-index: 2147483647;
+  width: 300px;
+  max-height: calc(100vh - 100px);
+  overflow-y: auto;
+  background: #1a1a2e;
+  color: #e0e0e0;
+  border: 1px solid #2e2e50;
+  border-radius: 10px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.55);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 13px;
+  scrollbar-width: thin;
+  scrollbar-color: #3a3a5c #1a1a2e;
+}
+
+/* ── Header ─────────────────────────────────────── */
+.rr-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px 8px;
+  background: #0f0f1e;
+  border-bottom: 1px solid #2e2e50;
+  border-radius: 10px 10px 0 0;
+  cursor: grab;
+  user-select: none;
+}
+.rr-panel-header:active { cursor: grabbing; }
+
+.rr-panel-title {
+  font-weight: 700;
+  font-size: 14px;
+  color: #a5b4fc;
+  letter-spacing: 0.03em;
+}
+.rr-panel-btns { display: flex; gap: 6px; }
+.rr-btn-icon {
+  background: transparent;
+  border: none;
+  color: #7c7c9e;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 0 4px;
+  line-height: 1;
+  border-radius: 4px;
+  transition: color 0.15s, background 0.15s;
+}
+.rr-btn-icon:hover { color: #e0e0e0; background: #2e2e50; }
+
+/* ── Body ────────────────────────────────────────── */
+.rr-panel-body { padding: 10px 12px 12px; }
+
+/* ── Detect row ─────────────────────────────────── */
+.rr-detect-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+.rr-detect-row button {
+  background: #2563eb;
+  border: none;
+  color: #fff;
+  padding: 5px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: background 0.15s;
+}
+.rr-detect-row button:hover:not(:disabled) { background: #1d4ed8; }
+.rr-detect-row button:disabled { opacity: 0.5; cursor: default; }
+
+.rr-detect-clear {
+  background: transparent;
+  border: 1px solid #7f1d1d;
+  color: #f87171;
+  padding: 3px 7px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 600;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+.rr-detect-clear:hover { background: #7f1d1d; color: #fff; }
+
+.rr-btn-refresh {
+  background: transparent;
+  border: 1px solid #334155;
+  color: #94a3b8;
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+  padding: 0;
+  flex-shrink: 0;
+  transition: border-color 0.15s, color 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.rr-btn-refresh:hover { border-color: #a5b4fc; color: #a5b4fc; }
+
+.rr-address-text {
+  font-size: 11px;
+  color: #94a3b8;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Cards ──────────────────────────────────────── */
+.rr-card {
+  background: #16213e;
+  border: 1px solid #2e2e50;
+  border-radius: 8px;
+  margin-bottom: 10px;
+  overflow: hidden;
+}
+.rr-card--loading .rr-card-map-wrap { opacity: 0.4; }
+.rr-card--error { border-color: #7f1d1d; }
+
+.rr-card-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 10px;
+  background: #0d1b2a;
+}
+.rr-card-icon  { font-size: 16px; }
+.rr-card-label {
+  flex: 1;
+  font-weight: 600;
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rr-card-mode {
+  font-size: 10px;
+  color: #7c7c9e;
+  font-style: italic;
+}
+
+.rr-card-map-wrap {
+  width: 100%;
+  height: 140px;
+  overflow: hidden;
+}
+.rr-card-map {
+  width: 100%;
+  height: 140px;
+}
+
+.rr-card-stats {
+  padding: 6px 10px;
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  font-size: 12px;
+  color: #cbd5e1;
+  background: #0d1b2a;
+  flex-wrap: wrap;
+}
+.rr-card-stats strong { color: #a5b4fc; }
+
+.rr-transit-info {
+  font-size: 10px;
+  color: #a855f7;
+  flex-basis: 100%;
+}
+.rr-transit-lines {
+  font-size: 10px;
+  color: #94a3b8;
+  flex-basis: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Transit leg breakdown ──────────────────────── */
+.rr-transit-legs {
+  flex-basis: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-top: 4px;
+  padding: 6px 0 2px;
+  border-top: 1px solid #1e293b;
+}
+.rr-leg {
+  font-size: 11px;
+  line-height: 1.4;
+  color: #cbd5e1;
+}
+.rr-leg--walk {
+  color: #94a3b8;
+  font-style: italic;
+}
+.rr-leg--transit strong {
+  color: #a5b4fc;
+}
+.rr-leg-stops-detail {
+  font-size: 10px;
+  color: #64748b;
+  padding-left: 20px;
+  margin-top: 1px;
+}
+
+/* ── Status messages ────────────────────────────── */
+.rr-loading-msg, .rr-error-msg, .rr-empty-msg {
+  padding: 16px 0;
+  text-align: center;
+  font-size: 12px;
+  color: #64748b;
+}
+.rr-error-msg { color: #f87171; }
+
+.rr-skeleton { color: #4b5563; font-style: italic; }
+
+/* ── Settings button ────────────────────────────── */
+.rr-btn-settings {
+  width: 100%;
+  margin-top: 8px;
+  background: transparent;
+  border: 1px dashed #2e2e50;
+  color: #7c7c9e;
+  padding: 6px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: border-color 0.15s, color 0.15s;
+}
+.rr-btn-settings:hover { border-color: #a5b4fc; color: #a5b4fc; }
+
+/* ── Click-to-pick overlay ──────────────────────── */
+#rentroute-pick-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483646;
+  pointer-events: none;
+}
+.rr-pick-banner {
+  position: fixed;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #1e1b4b;
+  color: #e0e0ff;
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.60);
+  pointer-events: auto;
+  white-space: nowrap;
+}
+.rr-pick-banner kbd {
+  background: #312e81;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-family: inherit;
+}
+
+/* ── Leaflet emoji icon ──────────────────────────── */
+.rr-emoji-icon { background: transparent; border: none; }
