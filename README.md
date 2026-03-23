@@ -33,6 +33,10 @@ modules/
 styles/
   panel.css         Panel, cards, transit legs, pick overlay
   popup.css         Popup page styles
+
+.github/
+  copilot_instructions.md   Coding agent rules — stack, structure, patterns, debug cycle
+  ai_instructions.md        AI session log — per-session dev history and prompts
 ```
 
 ## How It Works
