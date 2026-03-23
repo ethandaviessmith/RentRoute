@@ -7,6 +7,9 @@ propose a prompt to create a rules file to use sonnet, codex to build a chrome e
 use common js libraries to keep code simple and well structured
 include dev cycle of testing changes by launching chrome and reading logs
 
+
+[Copilot Instructions file](copilot_instructions.md)
+
 ---
 
 ## Session 1 — 2026-03-22 · RentRoute Chrome Extension (map_extension/)
