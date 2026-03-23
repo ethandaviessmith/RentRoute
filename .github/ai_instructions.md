@@ -24,6 +24,8 @@ include dev cycle of testing changes by launching chrome and reading logs
 Asked 4 clarifying Qs: API choice, detect mode, target sites, panel placement.
 Decided: OpenRouteService (free, no billing) + Leaflet/OSM, both auto-detect and click-to-pick, Zillow/Apartments.com/Realtor.com, floating draggable panel. Proposed ASCII layout + full file plan. User said go.
 
+## View in RAW File
+
 Popup (280px wide):
 ┌────────────────────────────┐
 │ 🗺 RentRoute               │
