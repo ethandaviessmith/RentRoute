@@ -64,8 +64,8 @@ async function loadModules() {
 
   // 7. Re-render cards whenever destinations change in storage
   stateMod.subscribe(() => {
-    apiMod.clearRouteCache();
-    panelMod.refreshCards(null);   // keep existing origin, re-fetch routes
+    panelMod.invalidateRenderedKey();   // force re-render check
+    panelMod.refreshCards(null);        // keep existing origin, routes still cached
   });
 
   // 8. Message handler — popup can trigger a re-detect

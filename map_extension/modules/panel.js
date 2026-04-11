@@ -20,6 +20,7 @@ let _currentAddr   = null;
 let _currentCoords = null;
 let _minimised     = false;
 let _isSavedSel    = false;   // true when the current address came from a saved selector
+let _renderedKey   = null;    // fingerprint of last rendered state (addr + dests)
 
 // ── Public API ────────────────────────────────────────────────────────────────
 
@@ -47,6 +48,11 @@ export function removePanel() {
   _panel = null;
 }
 
+/** Force next refreshCards() to re-render even if fingerprint matches. */
+export function invalidateRenderedKey() {
+  _renderedKey = null;
+}
+
 /** Re-render commute cards for the current origin address. */
 export async function refreshCards(address) {
   if (!_panel) return;
@@ -61,6 +67,18 @@ export async function refreshCards(address) {
     return;
   }
   _setAddressDisplay(_currentAddr);
+
+  // Build a fingerprint of (address + destinations); skip re-render if unchanged
+  const dests = getDestinations();
+  const renderKey = JSON.stringify({
+    addr: _currentAddr,
+    dests: dests.map(d => `${d.id}|${d.address}|${d.mode}`),
+  });
+  if (renderKey === _renderedKey) {
+    log.debug('refreshCards: skipping — nothing changed');
+    return;
+  }
+
   _setCardsLoading();
 
   // Geocode origin
@@ -72,9 +90,9 @@ export async function refreshCards(address) {
     }
   }
 
-  const dests = getDestinations();
   if (!dests.length) {
     _setCardsEmpty();
+    _renderedKey = renderKey;
     return;
   }
 
@@ -87,6 +105,8 @@ export async function refreshCards(address) {
     container.appendChild(card);
     _loadCard(card, dest);
   }
+
+  _renderedKey = renderKey;
 }
 
 // ── Private helpers ───────────────────────────────────────────────────────────
