@@ -10,10 +10,18 @@ const log = createLogger('detect');
 // ── Per-site auto-detect selectors ───────────────────────────────────────────
 // Each entry: { test: (hostname) => bool, selectors: string[] }
 // First matching element's trimmed textContent is used.
+// Optional `combine`: array of selector-arrays; all elements' text is joined
+// with ", " to form one address (for sites that split street / city across tags).
 const SITE_RULES = [
   {
     test: h => h.includes('zillow.com'),
+    // Zillow often splits street into h1 and city/state/zip into p
+    combine: [
+      ['[data-test-id="bdp-building-title"]', '[data-test-id="bdp-building-address"]'],
+      ['[data-testid="bdp-building-title"]',  '[data-testid="bdp-building-address"]'],
+    ],
     selectors: [
+      '[data-test-id="bdp-building-address"]',
       '[data-testid="bdp-building-address"]',
       'h1[class*="summary-container"]',
       '.building-address',
@@ -22,9 +30,14 @@ const SITE_RULES = [
   },
   {
     test: h => h.includes('apartments.com'),
+    // Street is in .delivery-address h1, city/state/zip in h2 inside the same container
+    combine: [
+      ['.delivery-address h1', '.propertyAddressContainer h2'],
+      ['#propertyAddressRow h1', '#propertyAddressRow h2'],
+    ],
     selectors: [
+      '.propertyAddressContainer',
       '.propertyAddress',
-      'h2.propertyName',
       '[class*="address"]',
     ],
   },
@@ -63,6 +76,26 @@ export function autoDetectInfo() {
   const rule = SITE_RULES.find(r => r.test(host));
   if (!rule) { log.debug('autoDetect: no rule for', host); return null; }
 
+  // 2a. Try combine groups first (multi-element addresses)
+  if (rule.combine) {
+    for (const group of rule.combine) {
+      const parts = group.map(sel => {
+        const el = document.querySelector(sel);
+        return (el?.innerText?.trim() ?? el?.textContent?.trim() ?? '');
+      });
+      // All parts must have content for a valid combined address
+      if (parts.every(p => p.length > 0)) {
+        const text = parts.join(', ').replace(/,\s*,/g, ',').trim();
+        if (text.length > 4) {
+          const selector = group.join(' + ');  // for display/logging only
+          log.info('autoDetect: combined', group, '→', text);
+          return { text, selector, isSaved: false };
+        }
+      }
+    }
+  }
+
+  // 2b. Single-element selectors
   for (const sel of rule.selectors) {
     const el = document.querySelector(sel);
     if (el) {

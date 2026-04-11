@@ -31,9 +31,125 @@ async function _rateLimitedFetch(url, options = {}) {
   return chrome.runtime.sendMessage({ action: 'fetch', url, options });
 }
 
+// ── Address cleaning ─────────────────────────────────────────────────────────
+// Strip apartment / unit / suite / floor numbers that confuse Nominatim.
+// e.g. "23 Thurston Rd #23, Newton …" → "23 Thurston Rd, Newton …"
+//       "47 Algonquin Rd Unit 1, Chestnut Hill, MA" → "47 Algonquin Rd, Chestnut Hill, MA"
+//       "100 Main St, Apt B-2, Boston MA" → "100 Main St, Boston MA"
+const _UNIT_KEYWORDS =
+  '(?:apt|apartment|unit|suite|ste|fl|floor|rm|room|bldg|building|lot|space|ph|penthouse|no|number)';
+const _UNIT_RE = new RegExp(
+  // Optional leading comma, then either:
+  //   #<id>  OR  keyword.<space>#?<id>
+  // <id> = alphanumeric/hyphen token ("1", "A", "3-B", "B2", etc.)
+  '\\s*,?\\s*(?:#\\s*[\\w-]+|' + _UNIT_KEYWORDS + '\\.?\\s*#?\\s*[\\w-]+)',
+  'gi'
+);
+
+function _cleanAddress(raw) {
+  let addr = raw.trim();
+  addr = addr.replace(_UNIT_RE, '');
+
+  // Collapse leftover double commas / leading commas / trailing commas / extra whitespace
+  addr = addr.replace(/,\s*,/g, ',').replace(/^\s*,\s*/, '').replace(/,\s*$/, '').replace(/\s{2,}/g, ' ').trim();
+
+  return addr;
+}
+
+/**
+ * Aggressively strip the address down to "<number> <street-name>, <city-state-zip>".
+ * Used as a fallback when the normal clean still fails to geocode.
+ * e.g. "47 Algonquin Rd Unit 1, Chestnut Hill, MA 02467"
+ *    → "47 Algonquin Rd, Chestnut Hill, MA 02467"
+ */
+function _aggressiveClean(raw) {
+  let addr = _cleanAddress(raw);
+
+  // Split on first comma → street part vs. rest (city/state/zip)
+  const commaIdx = addr.indexOf(',');
+  if (commaIdx === -1) return addr;
+
+  let street = addr.slice(0, commaIdx).trim();
+  const rest = addr.slice(commaIdx);  // keeps leading ","
+
+  // Strip anything after the core street: keep "<number(s)> <word(s)>" but drop
+  // trailing tokens that look like leftover unit info (short alphanumeric fragments).
+  // e.g. "47 Algonquin Rd B" → "47 Algonquin Rd"
+  street = street.replace(/\s+[A-Za-z](?:\d|[-]\w)*$/i, '');
+  street = street.replace(/\s+\d{1,5}[A-Za-z]{0,2}$/i, '');
+
+  return (street + rest).replace(/,\s*,/g, ',').replace(/\s{2,}/g, ' ').trim();
+}
+
+// ── Address parsing for structured queries ───────────────────────────────────
+// US two-letter state abbreviations
+const _US_STATES = new Set([
+  'AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA',
+  'KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ',
+  'NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT',
+  'VA','WA','WV','WI','WY','DC',
+]);
+
+/**
+ * Parse a US-style address into structured components.
+ * @returns {{ street: string, city?: string, state?: string, zip?: string } | null}
+ */
+function _parseAddress(addr) {
+  // Expected format: "Street, City, ST ZIP" or "Street, City, ST"
+  const parts = addr.split(',').map(s => s.trim()).filter(Boolean);
+  if (parts.length < 2) return null;
+
+  const street = parts[0];
+  // Last part usually has "STATE ZIP" or just "STATE"
+  const lastPart = parts[parts.length - 1];
+  const stateZipMatch = lastPart.match(/^([A-Z]{2})\s+(\d{5}(?:-\d{4})?)$/i)
+                     || lastPart.match(/^([A-Z]{2})$/i);
+
+  if (!stateZipMatch) return null;
+  const state = stateZipMatch[1].toUpperCase();
+  if (!_US_STATES.has(state)) return null;
+
+  const zip   = stateZipMatch[2] || undefined;
+  // City is everything between street and the state/zip part
+  const city  = parts.length > 2 ? parts.slice(1, -1).join(', ') : undefined;
+
+  return { street, city, state, zip };
+}
+
 // ── Session-level route/geocode cache ────────────────────────────────────────
 const _geocodeCache = {};   // address → { lat, lon }
 const _routeCache   = {};   // `${originKey}|${destKey}|${mode}` → result
+
+// ── Nominatim helpers ────────────────────────────────────────────────────────
+const _NOMINATIM_HEADERS = { 'Accept-Language': 'en', 'User-Agent': 'RentRoute-Extension/0.1' };
+
+/** Free-form Nominatim query. Returns parsed array or null on error. */
+async function _nominatimFreeform(query) {
+  const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1`;
+  log.debug('geocode (freeform)', query);
+  const res = await _rateLimitedFetch(url, { headers: _NOMINATIM_HEADERS });
+  if (!res.ok) { log.error('geocode failed', res.status); return null; }
+  try { return JSON.parse(res.body); } catch { log.error('geocode parse error'); return null; }
+}
+
+/**
+ * Structured Nominatim query — bypasses free-form ambiguity.
+ * Nominatim often fails on neighbourhood/village names (e.g. "Chestnut Hill")
+ * but succeeds when queried as street + postalcode + countrycodes.
+ */
+async function _nominatimStructured(parsed) {
+  const params = new URLSearchParams({ format: 'json', limit: '1' });
+  params.set('street', parsed.street);
+  if (parsed.state) params.set('state', parsed.state);
+  if (parsed.zip)   params.set('postalcode', parsed.zip);
+  params.set('countrycodes', 'us');
+
+  const url = `https://nominatim.openstreetmap.org/search?${params}`;
+  log.debug('geocode (structured)', Object.fromEntries(params));
+  const res = await _rateLimitedFetch(url, { headers: _NOMINATIM_HEADERS });
+  if (!res.ok) { log.error('geocode structured failed', res.status); return null; }
+  try { return JSON.parse(res.body); } catch { log.error('geocode parse error'); return null; }
+}
 
 // ── Geocode (Nominatim) ──────────────────────────────────────────────────────
 /**
@@ -41,27 +157,52 @@ const _routeCache   = {};   // `${originKey}|${destKey}|${mode}` → result
  * @returns {Promise<{lat: number, lon: number}|null>}
  */
 export async function geocode(address) {
-  const key = address.trim().toLowerCase();
+  const cleaned = _cleanAddress(address);
+  const key = cleaned.toLowerCase();
   if (_geocodeCache[key]) return _geocodeCache[key];
 
-  const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(address)}&format=json&limit=1`;
-  log.debug('geocode', address);
+  if (cleaned !== address.trim()) {
+    log.info('geocode: cleaned address', address, '→', cleaned);
+  }
 
-  const res = await _rateLimitedFetch(url, {
-    headers: { 'Accept-Language': 'en', 'User-Agent': 'RentRoute-Extension/0.1' }
-  });
+  // Build candidate list: normal clean → aggressive clean
+  const candidates = [cleaned];
+  const aggressive = _aggressiveClean(address);
+  if (aggressive.toLowerCase() !== key) candidates.push(aggressive);
 
-  if (!res.ok) { log.error('geocode failed', res.status); return null; }
+  // Phase 1: free-form queries
+  for (const candidate of candidates) {
+    const cacheHit = _geocodeCache[candidate.toLowerCase()];
+    if (cacheHit) return cacheHit;
 
-  let data;
-  try { data = JSON.parse(res.body); } catch { log.error('geocode parse error'); return null; }
+    const data = await _nominatimFreeform(candidate);
+    if (data?.length) {
+      const result = { lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon) };
+      _geocodeCache[candidate.toLowerCase()] = result;
+      _geocodeCache[key] = result;
+      log.info('geocoded', candidate, '→', result);
+      return result;
+    }
+    log.warn('geocode: no results for', candidate);
+  }
 
-  if (!data.length) { log.warn('geocode: no results for', address); return null; }
+  // Phase 2: structured query fallback (street + state + zip, no city)
+  // Handles cases where Nominatim's free-form chokes on neighbourhood/village
+  // names that OSM doesn't recognise as cities (e.g. Chestnut Hill → Newton).
+  const parsed = _parseAddress(cleaned);
+  if (parsed) {
+    log.info('geocode: trying structured fallback for', parsed);
+    const data = await _nominatimStructured(parsed);
+    if (data?.length) {
+      const result = { lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon) };
+      _geocodeCache[key] = result;
+      log.info('geocoded (structured)', cleaned, '→', result);
+      return result;
+    }
+  }
 
-  const result = { lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon) };
-  _geocodeCache[key] = result;
-  log.info('geocoded', address, '→', result);
-  return result;
+  log.warn('geocode: all attempts failed for', address);
+  return null;
 }
 
 // ── HERE transport mode mapping ──────────────────────────────────────────────
