@@ -23,6 +23,24 @@
     <a class="hint-link" href="https://platform.here.com/sign-up" target="_blank">
       Get a free key ↗
     </a>
+
+    <label for="sheets-url-input" style="margin-top:10px">Sheets Web App URL</label>
+    <div class="key-row">
+      <input type="text" id="sheets-url-input" placeholder="https://script.google.com/macros/s/.../exec" autocomplete="off">
+      <button id="btn-save-sheets-url" class="btn-primary">Save</button>
+    </div>
+    <p class="hint-text" id="sheets-url-bundled-hint" style="display:none">
+      ✅ URL loaded from keys.js
+    </p>
+
+    <label for="sheets-secret-input" style="margin-top:10px">Sheets Secret</label>
+    <div class="key-row">
+      <input type="password" id="sheets-secret-input" placeholder="Shared secret" autocomplete="off">
+      <button id="btn-save-sheets-secret" class="btn-primary">Save</button>
+    </div>
+    <p class="hint-text" id="sheets-secret-bundled-hint" style="display:none">
+      ✅ Secret loaded from keys.js
+    </p>
   </section>
 
   <section class="section">

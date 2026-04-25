@@ -2,6 +2,8 @@
 
 import {
   initState, getApiKey, setApiKey,
+  getSheetsUrl, setSheetsUrl, getSheetsSecret, setSheetsSecret,
+  isApiKeyBundled, isSheetsUrlBundled, isSheetsSecretBundled,
   getDestinations, addDestination, removeDestination, updateDestination,
 } from './modules/state.js';
 import { geocode } from './modules/api.js';
@@ -38,6 +40,36 @@ const MODE_OPTIONS = [
     _flash(btnSaveKey, 'Saved ✓');
     bundledHint.style.display = key ? '' : 'none';
     log.info('API key saved');
+  });
+
+  // ── Sheets Web App URL ─────────────────────────────────────────────────────
+  const sheetsUrlInput   = document.getElementById('sheets-url-input');
+  const btnSaveSheetsUrl = document.getElementById('btn-save-sheets-url');
+  const sheetsUrlHint    = document.getElementById('sheets-url-bundled-hint');
+
+  sheetsUrlInput.value = getSheetsUrl();
+  if (isSheetsUrlBundled()) sheetsUrlHint.style.display = '';
+
+  btnSaveSheetsUrl.addEventListener('click', async () => {
+    const url = sheetsUrlInput.value.trim();
+    await setSheetsUrl(url);
+    _flash(btnSaveSheetsUrl, 'Saved ✓');
+    log.info('sheets URL saved');
+  });
+
+  // ── Sheets Secret ──────────────────────────────────────────────────────────
+  const sheetsSecretInput   = document.getElementById('sheets-secret-input');
+  const btnSaveSheetsSecret = document.getElementById('btn-save-sheets-secret');
+  const sheetsSecretHint    = document.getElementById('sheets-secret-bundled-hint');
+
+  sheetsSecretInput.value = getSheetsSecret();
+  if (isSheetsSecretBundled()) sheetsSecretHint.style.display = '';
+
+  btnSaveSheetsSecret.addEventListener('click', async () => {
+    const secret = sheetsSecretInput.value.trim();
+    await setSheetsSecret(secret);
+    _flash(btnSaveSheetsSecret, 'Saved ✓');
+    log.info('sheets secret saved');
   });
 
   // ── Destination list ───────────────────────────────────────────────────────

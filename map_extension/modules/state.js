@@ -7,10 +7,14 @@ const log = createLogger('state');
 
 // ── Try importing bundled key (may be absent in some environments) ──────────
 let _bundledKey = '';
+let _bundledSheetsUrl = '';
+let _bundledSheetsSecret = '';
 try {
   const keysUrl = new URL('../keys.js', import.meta.url).href;
   const keysMod = await import(keysUrl);
-  _bundledKey = keysMod.HERE_API_KEY ?? '';
+  _bundledKey           = keysMod.HERE_API_KEY      ?? '';
+  _bundledSheetsUrl     = keysMod.SHEETS_WEBAPP_URL ?? '';
+  _bundledSheetsSecret  = keysMod.SHEETS_SECRET     ?? '';
 } catch {
   log.debug('keys.js not found — falling back to stored key');
 }
@@ -18,6 +22,8 @@ try {
 // ── in-memory cache (populated by init()) ──────────────────────────────────
 let _cache = {
   apiKey: '',
+  sheetsUrl: '',
+  sheetsSecret: '',
   destinations: [],   // [{ id, label, address, lat, lon, mode }]
   savedSelectors: {}, // { hostname: cssSelector }
 };
@@ -32,9 +38,11 @@ function _notify() {
 
 // ── init: load from storage once ───────────────────────────────────────────
 export async function initState() {
-  const data = await chrome.storage.sync.get(['apiKey', 'destinations']);
-  // Prefer bundled key from keys.js; fall back to stored key
-  _cache.apiKey       = _bundledKey || data.apiKey || '';
+  const data = await chrome.storage.sync.get(['apiKey', 'destinations', 'sheetsUrl', 'sheetsSecret']);
+  // Prefer bundled values from keys.js; fall back to stored values
+  _cache.apiKey       = _bundledKey          || data.apiKey       || '';
+  _cache.sheetsUrl    = _bundledSheetsUrl    || data.sheetsUrl    || '';
+  _cache.sheetsSecret = _bundledSheetsSecret || data.sheetsSecret || '';
   _cache.destinations = data.destinations ?? [];
 
   // Saved selectors live in local storage (device-specific, not synced)
@@ -46,6 +54,11 @@ export async function initState() {
 
 // ── accessors ───────────────────────────────────────────────────────────────
 export function getApiKey()          { return _cache.apiKey; }
+export function getSheetsUrl()       { return _cache.sheetsUrl; }
+export function getSheetsSecret()    { return _cache.sheetsSecret; }
+export function isSheetsUrlBundled()    { return !!_bundledSheetsUrl; }
+export function isSheetsSecretBundled() { return !!_bundledSheetsSecret; }
+export function isApiKeyBundled()       { return !!_bundledKey; }
 export function getDestinations()    { return _cache.destinations; }
 export function getSavedSelector(h)  { return _cache.savedSelectors[h] ?? null; }
 
@@ -66,6 +79,18 @@ export async function clearSavedSelector(hostname) {
 export async function setApiKey(key) {
   _cache.apiKey = key;
   await chrome.storage.sync.set({ apiKey: key });
+  _notify();
+}
+
+export async function setSheetsUrl(url) {
+  _cache.sheetsUrl = url;
+  await chrome.storage.sync.set({ sheetsUrl: url });
+  _notify();
+}
+
+export async function setSheetsSecret(secret) {
+  _cache.sheetsSecret = secret;
+  await chrome.storage.sync.set({ sheetsSecret: secret });
   _notify();
 }
 

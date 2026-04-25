@@ -1,7 +1,7 @@
 // modules/panel.js — floating side panel DOM management
 
 import { createLogger }        from './logger.js';
-import { getDestinations, getSavedSelector, setSavedSelector, clearSavedSelector } from './state.js';
+import { getDestinations, getSavedSelector, setSavedSelector, clearSavedSelector, getSheetsUrl, getSheetsSecret } from './state.js';
 import { geocode, getRoute }   from './api.js';
 import { initMap }             from './map.js';
 import { autoDetectInfo, pickAddressWithSelector, watchAddress } from './detect.js';
@@ -27,20 +27,14 @@ let _renderedKey   = null;    // fingerprint of last rendered state (addr + dest
 // { [label]: { durationMin, mode } }
 let _lastRoutes = {};
 
-// Lazy-loaded sheets config (from keys.js)
+// Lazy-loaded sheets config (from state, which prefers keys.js then storage)
 let _sheetsCfg = null;
 async function _getSheetsCfg() {
   if (_sheetsCfg !== null) return _sheetsCfg;
-  try {
-    const url  = new URL('../keys.js', import.meta.url).href;
-    const mod  = await import(url);
-    _sheetsCfg = {
-      url:    mod.SHEETS_WEBAPP_URL || '',
-      secret: mod.SHEETS_SECRET     || '',
-    };
-  } catch {
-    _sheetsCfg = { url: '', secret: '' };
-  }
+  _sheetsCfg = {
+    url:    getSheetsUrl()    || '',
+    secret: getSheetsSecret() || '',
+  };
   return _sheetsCfg;
 }
 

@@ -93,13 +93,23 @@ export function autoDetectInfo() {
   // 1. Try the user's saved selector for this site
   const saved = getSavedSelector(host);
   if (saved) {
-    const el = document.querySelector(saved);
+    let el = null;
+    try { el = document.querySelector(saved); } catch {}
     const text = el?.innerText?.trim() ?? el?.textContent?.trim() ?? '';
     if (text.length > 4) {
-      log.info('autoDetect: used saved selector', saved, '→', text);
-      return { text, selector: saved, isSaved: true };
+      // Validate completeness: a full address should contain a state/zip-like
+      // signal (", XX" 2-letter state, or a 5-digit ZIP). If it doesn't, the
+      // saved selector is probably just the street line — fall through to the
+      // per-site combine rules so we get the full "Street, City, State ZIP".
+      const looksComplete = /,\s*[A-Z]{2}\b/.test(text) || /\b\d{5}\b/.test(text);
+      if (looksComplete) {
+        log.info('autoDetect: used saved selector', saved, '→', text);
+        return { text, selector: saved, isSaved: true };
+      }
+      log.warn('autoDetect: saved selector text looks incomplete, falling through:', text);
+    } else {
+      log.warn('autoDetect: saved selector matched nothing, falling through', saved);
     }
-    log.warn('autoDetect: saved selector matched nothing, falling through', saved);
   }
 
   // 2. Fall back to built-in per-site rules
