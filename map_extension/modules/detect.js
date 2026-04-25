@@ -50,6 +50,15 @@ const SITE_RULES = [
       '[class*="address"]',
     ],
   },
+  {
+    test: h => h.includes('padmapper.com'),
+    selectors: [
+      '[class*="ListingAddress"]',
+      '[class*="AddressLine"]',
+      '[class*="address"]',
+      'h1',
+    ],
+  },
 ];
 
 /**

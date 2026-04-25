@@ -5,6 +5,7 @@ import { getDestinations, getSavedSelector, setSavedSelector, clearSavedSelector
 import { geocode, getRoute }   from './api.js';
 import { initMap }             from './map.js';
 import { autoDetectInfo, pickAddressWithSelector, watchAddress } from './detect.js';
+import { extractListingInfo } from './extract.js';
 
 const log = createLogger('panel');
 
@@ -21,6 +22,27 @@ let _currentCoords = null;
 let _minimised     = false;
 let _isSavedSel    = false;   // true when the current address came from a saved selector
 let _renderedKey   = null;    // fingerprint of last rendered state (addr + dests)
+
+// Latest commute results, keyed by destination label (e.g. "Harvard", "Work")
+// { [label]: { durationMin, mode } }
+let _lastRoutes = {};
+
+// Lazy-loaded sheets config (from keys.js)
+let _sheetsCfg = null;
+async function _getSheetsCfg() {
+  if (_sheetsCfg !== null) return _sheetsCfg;
+  try {
+    const url  = new URL('../keys.js', import.meta.url).href;
+    const mod  = await import(url);
+    _sheetsCfg = {
+      url:    mod.SHEETS_WEBAPP_URL || '',
+      secret: mod.SHEETS_SECRET     || '',
+    };
+  } catch {
+    _sheetsCfg = { url: '', secret: '' };
+  }
+  return _sheetsCfg;
+}
 
 // ── Public API ────────────────────────────────────────────────────────────────
 
@@ -99,6 +121,7 @@ export async function refreshCards(address) {
   const container = _panel.querySelector('.rr-cards');
   container.innerHTML = '';
   _destroyMaps();
+  _lastRoutes = {};
 
   for (const dest of dests) {
     const card = _makeCardSkeleton(dest);
@@ -132,6 +155,10 @@ function _buildPanelHTML() {
         </button>
       </div>
       <div class="rr-cards"></div>
+      <button id="rr-btn-export" class="rr-btn-settings" title="Append this listing to Google Sheet">
+        📤 Export to Sheet
+      </button>
+      <span id="rr-export-status" class="rr-address-text" style="display:block;text-align:center;margin-top:4px;"></span>
       <button id="rr-btn-settings" class="rr-btn-settings">⚙ Manage Destinations</button>
     </div>`;
 }
@@ -206,6 +233,77 @@ function _bindHeaderButtons() {
   _panel.querySelector('#rr-btn-settings').addEventListener('click', () => {
     chrome.runtime.sendMessage({ action: 'openSettings' });
   });
+
+  _panel.querySelector('#rr-btn-export').addEventListener('click', _onExportClick);
+}
+
+async function _onExportClick() {
+  const btn      = _panel.querySelector('#rr-btn-export');
+  const statusEl = _panel.querySelector('#rr-export-status');
+  const setStatus = (msg, isErr = false) => {
+    statusEl.textContent = msg;
+    statusEl.style.color = isErr ? '#c00' : '#080';
+  };
+
+  if (!_currentAddr) {
+    setStatus('⚠ No address detected', true);
+    return;
+  }
+
+  const cfg = await _getSheetsCfg();
+  if (!cfg.url || !cfg.secret) {
+    setStatus('⚠ Sheets not configured (keys.js)', true);
+    return;
+  }
+
+  // Find Harvard / Work commute strings (case-insensitive label match)
+  const findRoute = (name) => {
+    const key = Object.keys(_lastRoutes).find(k => k.toLowerCase() === name.toLowerCase());
+    return key ? _lastRoutes[key] : null;
+  };
+  const fmt = (r) => r ? `${r.durationMin}m ${r.mode}` : '';
+
+  // Extract size / type / rent from the page
+  const info = extractListingInfo();
+  log.info('extracted listing info:', info);
+
+  const listing = {
+    url:            location.href,
+    address:        _currentAddr,
+    size:           info.size || '',
+    type:           info.type || '',
+    rent:           info.rent || '',
+    commuteHarvard: fmt(findRoute('Harvard')),
+    commuteWork:    fmt(findRoute('Work')),
+  };
+
+  btn.disabled = true;
+  setStatus('Sending…');
+  log.info('exporting to sheet', listing);
+
+  try {
+    // Use text/plain to avoid CORS preflight (Apps Script doPost still parses JSON)
+    const res = await fetch(cfg.url, {
+      method:   'POST',
+      headers:  { 'Content-Type': 'text/plain;charset=utf-8' },
+      body:     JSON.stringify({
+        secret:   cfg.secret,
+        listings: [listing],
+      }),
+      redirect: 'follow',
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || data.ok === false) {
+      throw new Error(data.error || `HTTP ${res.status}`);
+    }
+    setStatus(`✓ Added ${data.appended ?? 1} row`);
+    log.info('export ok', data);
+  } catch (err) {
+    log.error('export failed', err);
+    setStatus('⚠ Export failed: ' + err.message, true);
+  } finally {
+    btn.disabled = false;
+  }
 }
 
 function _makeCardSkeleton(dest) {
@@ -251,6 +349,13 @@ async function _loadCard(card, dest) {
     _cardError(card, route.reason);
     return;
   }
+
+  // Record for export
+  _lastRoutes[dest.label || dest.address] = {
+    durationMin: route.durationMin,
+    distanceMi:  route.distanceMi,
+    mode:        dest.mode,
+  };
 
   card.classList.remove('rr-card--loading');
 

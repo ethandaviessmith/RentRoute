@@ -8,9 +8,12 @@
     "https://router.hereapi.com/*",
     "https://transit.router.hereapi.com/*",
     "https://nominatim.openstreetmap.org/*",
+    "https://script.google.com/*",
+    "https://script.googleusercontent.com/*",
     "https://www.zillow.com/*",
     "https://www.apartments.com/*",
-    "https://www.realtor.com/*"
+    "https://www.realtor.com/*",
+    "https://www.padmapper.com/*"
   ],
   "background": { "service_worker": "background.js" },
   "action": { "default_popup": "popup.html", "default_title": "RentRoute" },
@@ -19,7 +22,8 @@
       "matches": [
         "https://www.zillow.com/*",
         "https://www.apartments.com/*",
-        "https://www.realtor.com/*"
+        "https://www.realtor.com/*",
+        "https://www.padmapper.com/*"
       ],
       "js": ["content.js"],
       "css": ["styles/panel.css", "lib/leaflet.css"],
@@ -38,13 +42,15 @@
         "modules/api.js",
         "modules/flexpolyline.js",
         "modules/detect.js",
+        "modules/extract.js",
         "modules/panel.js",
         "modules/map.js"
       ],
       "matches": [
         "https://www.zillow.com/*",
         "https://www.apartments.com/*",
-        "https://www.realtor.com/*"
+        "https://www.realtor.com/*",
+        "https://www.padmapper.com/*"
       ]
     }
   ]
