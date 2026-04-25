@@ -1,9 +1,10 @@
-// modules/extract.js — extract size, type, rent from a listing page.
-// Returns { size, type, rent } where any field may be '' (string) or 0 (rent).
+// modules/extract.js — extract size, type, rent, sqft from a listing page.
+// Returns { size, type, rent, sqft } where any field may be '' (string) or 0.
 //   size: normalized "<beds> bd + <baths> bath" (e.g. "3 bd + 1.5 bath")
 //   type: one of "Apartment" | "Condo" | "Townhouse" | "House" |
 //                "2 Stack Apt" | "3 Stack Apt" | "Duplex" | "" (default "Apartment")
 //   rent: integer dollars (high end of any range), 0 if not found
+//   sqft: integer square feet, 0 if not found
 
 import { createLogger } from './logger.js';
 const log = createLogger('extract');
@@ -11,13 +12,15 @@ const log = createLogger('extract');
 // ── Site rules ───────────────────────────────────────────────────────────────
 // Each rule provides selectors for rent, beds, baths, type, plus an optional
 // `descriptionSelectors` block whose combined text is keyword-scanned for
-// stack/duplex inference.
+// stack/duplex inference. `labels` maps a field to a label-text string used
+// for label-then-sibling extraction (handles hashed CSS classes).
 const SITE_RULES = [
   {
     test: h => h.includes('zillow.com'),
     rent:  ['[data-testid="price"]', 'span[data-test="property-card-price"]', '[class*="Price"]'],
     beds:  ['[data-testid="bed-bath-beyond"] [data-testid*="bed"]'],
     baths: ['[data-testid="bed-bath-beyond"] [data-testid*="bath"]'],
+    sqft:  ['[data-testid="bed-bath-beyond"] [data-testid*="sqft"]', '[data-testid*="sqft"]'],
     bedsBathsCombined: ['[data-testid="bed-bath-beyond"]'],
     typeText: ['[data-testid="home-type"]', '[class*="home-type"]'],
     descriptionSelectors: [
@@ -30,6 +33,14 @@ const SITE_RULES = [
     test: h => h.includes('apartments.com'),
     rent:  ['.priceBedRangeInfo .rentInfoDetail', '.propertyRent', '.rentRollup'],
     bedsBathsCombined: ['.priceBedRangeInfoInnerContainer', '.bedBathContainer', '.priceBedRangeInfo'],
+    sqft:  ['.priceBedRangeInfoInnerContainer .sqftAttr', '.sqftAttr'],
+    // Summary header uses <h4>Square Feet</h4> + sibling div with "267 - 725 sq ft"
+    labels: {
+      sqft:  ['Square Feet', 'Sq Ft', 'Sqft'],
+      rent:  ['Total Monthly Price', 'Monthly Rent'],
+      beds:  ['Bedrooms', 'Bedroom'],
+      baths: ['Bathrooms', 'Bathroom'],
+    },
     typeText: ['.propertyTypeContainer', '[class*="propertyType"]'],
     descriptionSelectors: [
       '#descriptionSection',
@@ -43,6 +54,7 @@ const SITE_RULES = [
     rent:  ['[data-testid="price"]', '[data-label="property-price"]', '[class*="Price"]'],
     beds:  ['[data-testid="property-meta-beds"]'],
     baths: ['[data-testid="property-meta-baths"]'],
+    sqft:  ['[data-testid="property-meta-sqft"]', '[data-label="property-meta-sqft"]'],
     typeText: ['[data-testid="property-type"]', '[data-label="property-type"]'],
     descriptionSelectors: [
       '[data-testid="description"]',
@@ -52,12 +64,14 @@ const SITE_RULES = [
   },
   {
     test: h => h.includes('padmapper.com'),
-    rent:  ['.ListingPrice_price', '[class*="ListingPrice"]', '[class*="price"]'],
-    bedsBathsCombined: [
-      '[class*="Summary"]',
-      '[class*="ListingDetails"]',
-      '[class*="bedrooms"]',
-    ],
+    // PadMapper's hashed class names break CSS selectors. Use label-based lookup
+    // against the Details section: <h5>Price</h5>, <h5>Square Feet</h5>, etc.
+    labels: {
+      rent: ['Price'],
+      sqft: ['Square Feet', 'Sq Ft', 'Sqft'],
+      beds: ['Bedrooms'],
+      baths: ['Bathrooms'],
+    },
     typeText: ['[class*="propertyType"]', '[class*="PropertyType"]'],
     descriptionSelectors: [
       '[class*="ListingDescription"]',
@@ -73,7 +87,7 @@ export function extractListingInfo() {
   const host = location.hostname;
   const rule = SITE_RULES.find(r => r.test(host));
 
-  const result = { size: '', type: '', rent: 0 };
+  const result = { size: '', type: '', rent: 0, sqft: 0 };
 
   if (!rule) {
     log.debug('no extract rule for', host);
@@ -81,7 +95,8 @@ export function extractListingInfo() {
   }
 
   // ── Rent ────────────────────────────────────────────────────────────────
-  const rentText = _firstText(rule.rent);
+  let rentText = _firstText(rule.rent);
+  if (!rentText && rule.labels?.rent) rentText = _firstByLabel(rule.labels.rent);
   if (rentText) {
     result.rent = _parseRent(rentText);
     log.debug('rent:', rentText, '→', result.rent);
@@ -101,6 +116,12 @@ export function extractListingInfo() {
     }
   }
 
+  // Label-based fallback (PadMapper)
+  if ((!beds || !baths) && rule.labels) {
+    if (!beds  && rule.labels.beds)  beds  = _parseNumberWithUnit(_firstByLabel(rule.labels.beds),  /bed|bd|br/i);
+    if (!baths && rule.labels.baths) baths = _parseNumberWithUnit(_firstByLabel(rule.labels.baths), /bath|ba\b/i);
+  }
+
   // Last-resort: scan body text near the price
   if (!beds || !baths) {
     const bodyText = document.body.innerText.slice(0, 5000); // cap for perf
@@ -114,6 +135,14 @@ export function extractListingInfo() {
     result.size = `${bedStr} + ${bathStr}`;
     log.debug('size:', result.size);
   }
+
+  // ── Sqft ────────────────────────────────────────────────────────────────
+  let sqftText = _firstText(rule.sqft);
+  if (!sqftText && rule.labels?.sqft) sqftText = _firstByLabel(rule.labels.sqft);
+  // Body-text regex fallback (works on any site)
+  if (!sqftText) sqftText = document.body.innerText.slice(0, 8000);
+  result.sqft = _parseSqft(sqftText);
+  log.debug('sqft →', result.sqft);
 
   // ── Type ───────────────────────────────────────────────────────────────
   const typeRaw = _firstText(rule.typeText) || '';
@@ -148,9 +177,34 @@ function _allText(selectors) {
   return out.join(' ').slice(0, 5000); // cap
 }
 
+/**
+ * Find an element whose text exactly matches one of the given label strings,
+ * then return the trimmed text of the first sibling (or parent's other child)
+ * that has meaningful content. Used for sites with hashed class names where
+ * stable CSS selectors aren't available.
+ */
+function _firstByLabel(labels) {
+  if (!labels || !labels.length) return '';
+  const wanted = labels.map(l => l.toLowerCase());
+  const candidates = document.querySelectorAll('h3, h4, h5, h6, dt, strong, b, span, div, p');
+  for (const lbl of candidates) {
+    const txt = (lbl.innerText ?? lbl.textContent ?? '').trim();
+    if (!wanted.includes(txt.toLowerCase())) continue;
+    // Try next sibling first, then other parent children
+    const tryEls = [lbl.nextElementSibling, ...(lbl.parentElement?.children ?? [])];
+    for (const cand of tryEls) {
+      if (!cand || cand === lbl) continue;
+      const v = (cand.innerText ?? cand.textContent ?? '').trim();
+      if (v && v.length < 200 && !wanted.includes(v.toLowerCase())) {
+        return v;
+      }
+    }
+  }
+  return '';
+}
+
 /** Parse "$2,800 - $3,000/mo" → 3000 (high end). Returns 0 if none. */
 function _parseRent(text) {
-  // Find all $-prefixed numbers OR bare 4-digit-ish numbers
   const matches = text.match(/\$?\s*\d[\d,]{2,}/g) || [];
   const nums = matches
     .map(m => parseInt(m.replace(/[^\d]/g, ''), 10))
@@ -160,18 +214,65 @@ function _parseRent(text) {
 }
 
 /**
- * Find a number that appears alongside the given unit regex.
- * e.g. _parseNumberWithUnit("3 bd, 1.5 bath", /bath/) → 1.5
+ * Parse sqft from text. Returns the LARGEST valid value (covers ranges like
+ * "267 - 725 sq ft" → 725, or bare numbers in a range string).
+ * Returns 0 if nothing found.
+ */
+function _parseSqft(text) {
+  if (!text) return 0;
+  const nums = [];
+
+  // Pass 1: "<number> sq ft / sqft / square feet"
+  const re1 = /(\d[\d,]{1,5})\s*(?:sq\.?\s?ft\.?|sqft|square\s?feet)/gi;
+  let m;
+  while ((m = re1.exec(text)) !== null) {
+    const n = parseInt(m[1].replace(/,/g, ''), 10);
+    if (n >= 100 && n <= 20000) nums.push(n);
+  }
+
+  // Pass 2: capture the leading number of a range like "267 - 725 sq ft".
+  //   Pattern: <num> <dash/sep> <num> <sq ft unit>  → also include <num1>
+  const re2 = /(\d[\d,]{1,5})\s*[-–—]\s*\d[\d,]{1,5}\s*(?:sq\.?\s?ft\.?|sqft|square\s?feet)/gi;
+  while ((m = re2.exec(text)) !== null) {
+    const n = parseInt(m[1].replace(/,/g, ''), 10);
+    if (n >= 100 && n <= 20000) nums.push(n);
+  }
+
+  if (!nums.length) return 0;
+  return Math.max(...nums);
+}
+
+/**
+ * Find a number that appears alongside the given unit regex. Picks the LARGEST
+ * such number (handles ranges like "Studio - 2 bd" → 2, "1 - 1.5 bath" → 1.5).
+ * Recognizes "Studio" as 0 beds.
  */
 function _parseNumberWithUnit(text, unitRe) {
   if (!text) return null;
-  // Match: <number> [whitespace/words<8 chars] <unit>
-  // Using a permissive pattern: number followed within ~12 chars by unit keyword
-  const re = new RegExp(`(\\d+(?:\\.\\d+)?)\\s*(?:[^\\d\\n]{0,12}?)?(${unitRe.source})`, 'i');
-  const m = text.match(re);
-  if (!m) return null;
-  const n = parseFloat(m[1]);
-  return Number.isFinite(n) ? n : null;
+  const nums = [];
+
+  // "Studio" counts as 0 beds (only when looking for beds)
+  if (/bed|bd|br/.test(unitRe.source) && /\bstudio\b/i.test(text)) {
+    nums.push(0);
+  }
+
+  // <number> ... <unit-keyword>
+  const re = new RegExp(`(\\d+(?:\\.\\d+)?)\\s*(?:[^\\d\\n]{0,12}?)?(${unitRe.source})`, 'gi');
+  let m;
+  while ((m = re.exec(text)) !== null) {
+    const n = parseFloat(m[1]);
+    if (Number.isFinite(n)) nums.push(n);
+  }
+
+  // Also capture the LOW end of "<a> - <b> <unit>" ranges so we have both ends.
+  const reRange = new RegExp(`(\\d+(?:\\.\\d+)?)\\s*[-–—]\\s*\\d+(?:\\.\\d+)?\\s*(?:[^\\d\\n]{0,12}?)?(${unitRe.source})`, 'gi');
+  while ((m = reRange.exec(text)) !== null) {
+    const n = parseFloat(m[1]);
+    if (Number.isFinite(n)) nums.push(n);
+  }
+
+  if (!nums.length) return null;
+  return Math.max(...nums);
 }
 
 function _fmtNum(n) {

@@ -52,11 +52,32 @@ const SITE_RULES = [
   },
   {
     test: h => h.includes('padmapper.com'),
+    // PadMapper uses hashed class names. Their "Details" section contains an
+    // <h5>Address</h5> label followed by the full address as a sibling — find
+    // it by label text instead of relying on CSS classes.
+    customExtract: () => {
+      const labels = document.querySelectorAll('h4, h5, h6, dt, div, span, p, strong, b');
+      for (const lbl of labels) {
+        const txt = (lbl.innerText ?? lbl.textContent ?? '').trim();
+        if (txt !== 'Address') continue;
+        // Try next sibling first
+        const candidates = [lbl.nextElementSibling, ...(lbl.parentElement?.children ?? [])];
+        for (const cand of candidates) {
+          if (!cand || cand === lbl) continue;
+          const v = (cand.innerText ?? cand.textContent ?? '').trim();
+          // Looks like an address: has a digit and is reasonably long
+          if (v.length > 8 && /\d/.test(v) && v !== 'Address') {
+            return cand;
+          }
+        }
+      }
+      return null;
+    },
+    // Fallbacks if customExtract returns null
     selectors: [
       '[class*="ListingAddress"]',
       '[class*="AddressLine"]',
       '[class*="address"]',
-      'h1',
     ],
   },
 ];
@@ -85,7 +106,25 @@ export function autoDetectInfo() {
   const rule = SITE_RULES.find(r => r.test(host));
   if (!rule) { log.debug('autoDetect: no rule for', host); return null; }
 
-  // 2a. Try combine groups first (multi-element addresses)
+  // 2a. Custom extractor (returns an Element) — used when CSS selectors are
+  //     unreliable (e.g. PadMapper's hashed class names).
+  if (rule.customExtract) {
+    try {
+      const el = rule.customExtract();
+      if (el) {
+        const text = (el.innerText ?? el.textContent ?? '').trim();
+        if (text.length > 4) {
+          const selector = generateSelector(el);
+          log.info('autoDetect: customExtract →', text, '| selector:', selector);
+          return { text, selector, isSaved: false };
+        }
+      }
+    } catch (e) {
+      log.warn('autoDetect: customExtract threw', e);
+    }
+  }
+
+  // 2b. Try combine groups (multi-element addresses)
   if (rule.combine) {
     for (const group of rule.combine) {
       const parts = group.map(sel => {
@@ -104,7 +143,7 @@ export function autoDetectInfo() {
     }
   }
 
-  // 2b. Single-element selectors
+  // 2c. Single-element selectors
   for (const sel of rule.selectors) {
     const el = document.querySelector(sel);
     if (el) {

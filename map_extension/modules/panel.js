@@ -273,6 +273,7 @@ async function _onExportClick() {
     size:           info.size || '',
     type:           info.type || '',
     rent:           info.rent || '',
+    sqft:           info.sqft || '',
     commuteHarvard: fmt(findRoute('Harvard')),
     commuteWork:    fmt(findRoute('Work')),
   };
